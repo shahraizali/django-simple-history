@@ -79,6 +79,7 @@ class HistoricalRecords:
         related_name=None,
         use_base_model_db=False,
         user_db_constraint=True,
+        using=None
     ):
         self.user_set_verbose_name = verbose_name
         self.user_related_name = user_related_name
@@ -97,6 +98,7 @@ class HistoricalRecords:
         self.user_setter = history_user_setter
         self.related_name = related_name
         self.use_base_model_db = use_base_model_db
+        self.using = using
 
         if excluded_fields is None:
             excluded_fields = []
@@ -470,12 +472,14 @@ class HistoricalRecords:
         return meta_fields
 
     def post_save(self, instance, created, using=None, **kwargs):
+        using = self.using if not using else using
         if not created and hasattr(instance, "skip_history_when_saving"):
             return
         if not kwargs.get("raw", False):
             self.create_historical_record(instance, created and "+" or "~", using=using)
 
     def post_delete(self, instance, using=None, **kwargs):
+        using = self.using if not using else using
         if self.cascade_delete_history:
             manager = getattr(instance, self.manager_name)
             manager.using(using).all().delete()

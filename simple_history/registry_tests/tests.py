@@ -1,23 +1,22 @@
+from __future__ import unicode_literals
+
 import unittest
 import uuid
 from datetime import datetime, timedelta
-from io import StringIO
 
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.core import management
 from django.test import TestCase, override_settings
+from six.moves import cStringIO as StringIO
 
 from simple_history import exceptions, register
-
 from ..tests.models import (
     Choice,
     InheritTracking1,
     InheritTracking2,
     InheritTracking3,
     InheritTracking4,
-    ModelWithCustomAttrForeignKey,
-    ModelWithHistoryInDifferentApp,
     Poll,
     Restaurant,
     TrackedAbstractBaseA,
@@ -28,6 +27,8 @@ from ..tests.models import (
     UserAccessorOverride,
     UUIDRegisterModel,
     Voter,
+    ModelWithCustomAttrForeignKey,
+    ModelWithHistoryInDifferentApp,
 )
 
 get_model = apps.get_model
@@ -198,7 +199,7 @@ class TestTrackingInheritance(TestCase):
 
 
 class TestCustomAttrForeignKey(TestCase):
-    """https://github.com/jazzband/django-simple-history/issues/431"""
+    """ https://github.com/treyhunner/django-simple-history/issues/431 """
 
     def test_custom_attr(self):
         field = ModelWithCustomAttrForeignKey.history.model._meta.get_field("poll")
@@ -219,7 +220,7 @@ class TestMigrate(TestCase):
 
 
 class TestModelWithHistoryInDifferentApp(TestCase):
-    """https://github.com/jazzband/django-simple-history/issues/485"""
+    """ https://github.com/treyhunner/django-simple-history/issues/485 """
 
     def test__different_app(self):
         appLabel = ModelWithHistoryInDifferentApp.history.model._meta.app_label

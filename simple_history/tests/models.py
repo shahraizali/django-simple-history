@@ -1,6 +1,6 @@
-import datetime
-import uuid
+from __future__ import unicode_literals
 
+import uuid
 from django.apps import apps
 from django.conf import settings
 from django.db import models
@@ -8,9 +8,11 @@ from django.urls import reverse
 
 from simple_history import register
 from simple_history.models import HistoricalRecords
-
 from .custom_user.models import CustomUser as User
-from .external.models import AbstractExternal, AbstractExternal2, AbstractExternal3
+
+from .external.models import AbstractExternal
+from .external.models import AbstractExternal2
+from .external.models import AbstractExternal3
 
 get_model = apps.get_model
 
@@ -25,13 +27,6 @@ class Poll(models.Model):
         return reverse("poll-detail", kwargs={"pk": self.pk})
 
 
-class PollWithUniqueQuestion(models.Model):
-    question = models.CharField(max_length=200, unique=True)
-    pub_date = models.DateTimeField("date published")
-
-    history = HistoricalRecords()
-
-
 class PollWithExcludeFields(models.Model):
     question = models.CharField(max_length=200)
     pub_date = models.DateTimeField("date published")
@@ -40,46 +35,12 @@ class PollWithExcludeFields(models.Model):
     history = HistoricalRecords(excluded_fields=["pub_date"])
 
 
-class PollWithExcludedFieldsWithDefaults(models.Model):
-    question = models.CharField(max_length=200)
-    pub_date = models.DateTimeField("date published")
-    expiration_time = models.DateField(default=datetime.date(2030, 12, 12))
-    place = models.TextField(null=True)
-    min_questions = models.PositiveIntegerField(default=1)
-    max_questions = models.PositiveIntegerField()
-
-    history = HistoricalRecords(
-        excluded_fields=[
-            "pub_date",
-            "expiration_time",
-            "place",
-            "min_questions",
-            "max_questions",
-        ]
-    )
-
-
 class PollWithExcludedFKField(models.Model):
     question = models.CharField(max_length=200)
     pub_date = models.DateTimeField("date published")
     place = models.ForeignKey("Place", on_delete=models.CASCADE)
 
     history = HistoricalRecords(excluded_fields=["place"])
-
-
-class AlternativePollManager(models.Manager):
-    def get_queryset(self):
-        return super(AlternativePollManager, self).get_queryset().exclude(id=1)
-
-
-class PollWithAlternativeManager(models.Model):
-    some_objects = AlternativePollManager()
-    all_objects = models.Manager()
-
-    question = models.CharField(max_length=200)
-    pub_date = models.DateTimeField("date published")
-
-    history = HistoricalRecords()
 
 
 class IPAddressHistoricalModel(models.Model):
@@ -211,20 +172,6 @@ class FileModel(models.Model):
     history = HistoricalRecords()
 
 
-# Set SIMPLE_HISTORY_FILEFIELD_TO_CHARFIELD
-setattr(settings, "SIMPLE_HISTORY_FILEFIELD_TO_CHARFIELD", True)
-
-
-class CharFieldFileModel(models.Model):
-    title = models.CharField(max_length=100)
-    file = models.FileField(upload_to="files")
-    history = HistoricalRecords()
-
-
-# Clear SIMPLE_HISTORY_FILEFIELD_TO_CHARFIELD
-delattr(settings, "SIMPLE_HISTORY_FILEFIELD_TO_CHARFIELD")
-
-
 class Document(models.Model):
     changed_by = models.ForeignKey(
         User, on_delete=models.CASCADE, null=True, blank=True
@@ -233,10 +180,7 @@ class Document(models.Model):
 
     @property
     def _history_user(self):
-        try:
-            return self.changed_by
-        except User.DoesNotExist:
-            return None
+        return self.changed_by
 
 
 class Paper(Document):
@@ -403,17 +347,6 @@ class City(models.Model):
     history = HistoricalRecords()
 
 
-class Planet(models.Model):
-    star = models.CharField(max_length=30)
-    history = HistoricalRecords()
-
-    def __str__(self):
-        return self.star
-
-    class Meta:
-        verbose_name = "Planet"
-
-
 class Contact(models.Model):
     name = models.CharField(max_length=30)
     email = models.EmailField(max_length=255, unique=True)
@@ -530,15 +463,6 @@ class InheritTracking4(TrackedAbstractBaseA):
     pass
 
 
-class BasePlace(models.Model):
-    name = models.CharField(max_length=50)
-    history = HistoricalRecords(inherit=True)
-
-
-class InheritedRestaurant(BasePlace):
-    serves_hot_dogs = models.BooleanField(default=False)
-
-
 class BucketMember(models.Model):
     name = models.CharField(max_length=30)
     user = models.OneToOneField(
@@ -609,6 +533,7 @@ class UUIDRegisterModel(models.Model):
 
 register(UUIDRegisterModel, history_id_field=models.UUIDField(default=uuid.uuid4))
 
+
 # Set the SIMPLE_HISTORY_HISTORY_ID_USE_UUID
 setattr(settings, "SIMPLE_HISTORY_HISTORY_ID_USE_UUID", True)
 
@@ -620,6 +545,7 @@ class UUIDDefaultModel(models.Model):
 
 # Clear the SIMPLE_HISTORY_HISTORY_ID_USE_UUID
 delattr(settings, "SIMPLE_HISTORY_HISTORY_ID_USE_UUID")
+
 
 # Set the SIMPLE_HISTORY_HISTORY_CHANGE_REASON_FIELD
 setattr(settings, "SIMPLE_HISTORY_HISTORY_CHANGE_REASON_USE_TEXT_FIELD", True)
@@ -712,19 +638,3 @@ class ForeignKeyToSelfModel(models.Model):
 class Street(models.Model):
     name = models.CharField(max_length=150)
     log = HistoricalRecords(related_name="history")
-
-
-class ManyToManyModelOther(models.Model):
-    name = models.CharField(max_length=15, unique=True)
-
-
-class BulkCreateManyToManyModel(models.Model):
-    name = models.CharField(max_length=15, unique=True)
-    other = models.ManyToManyField(ManyToManyModelOther)
-    history = HistoricalRecords()
-
-
-class ModelWithExcludedManyToMany(models.Model):
-    name = models.CharField(max_length=15, unique=True)
-    other = models.ManyToManyField(ManyToManyModelOther)
-    history = HistoricalRecords(excluded_fields=["other"])

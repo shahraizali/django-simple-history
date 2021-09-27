@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import unittest
 import uuid
 import warnings
@@ -23,8 +25,8 @@ from simple_history.tests.tests.utils import (
     database_router_override_settings_history_in_diff_db,
     middleware_override_settings,
 )
-from simple_history.utils import get_history_model_for_model, update_change_reason
-
+from simple_history.utils import get_history_model_for_model
+from simple_history.utils import update_change_reason
 from ..external.models import (
     ExternalModel,
     ExternalModelRegistered,
@@ -33,14 +35,12 @@ from ..external.models import (
 from ..models import (
     AbstractBase,
     AdminProfile,
-    BasePlace,
     Book,
     Bookcase,
     BucketData,
     BucketDataRegisterChangedBy,
     BucketMember,
     CharFieldChangeReasonModel,
-    CharFieldFileModel,
     Choice,
     City,
     ConcreteAttr,
@@ -62,24 +62,20 @@ from ..models import (
     HistoricalPoll,
     HistoricalPollWithHistoricalIPAddress,
     HistoricalState,
-    InheritedRestaurant,
+    OverrideModelNameAsCallable,
+    OverrideModelNameUsingBaseModel1,
+    MyOverrideModelNameRegisterMethod1,
     Library,
-    ManyToManyModelOther,
-    ModelWithExcludedManyToMany,
     ModelWithFkToModelWithHistoryUsingBaseModelDb,
     ModelWithHistoryInDifferentDb,
     ModelWithHistoryUsingBaseModelDb,
     MultiOneToOne,
-    MyOverrideModelNameRegisterMethod1,
-    OverrideModelNameAsCallable,
-    OverrideModelNameUsingBaseModel1,
     Person,
     Place,
     Poll,
     PollInfo,
-    PollWithExcludedFieldsWithDefaults,
-    PollWithExcludedFKField,
     PollWithExcludeFields,
+    PollWithExcludedFKField,
     PollWithHistoricalIPAddress,
     Province,
     Restaurant,
@@ -89,16 +85,16 @@ from ..models import (
     State,
     Street,
     Temperature,
-    UnicodeVerboseName,
-    UserTextFieldChangeReasonModel,
     UUIDDefaultModel,
     UUIDModel,
+    UnicodeVerboseName,
+    UserTextFieldChangeReasonModel,
     WaterLevel,
 )
 
 get_model = apps.get_model
 User = get_user_model()
-today = datetime(3021, 1, 1, 10, 0)
+today = datetime(2021, 1, 1, 10, 0)
 tomorrow = today + timedelta(days=1)
 yesterday = today - timedelta(days=1)
 
@@ -124,7 +120,7 @@ class HistoricalRecordsTest(TestCase):
     def test_create(self):
         p = Poll(question="what's up?", pub_date=today)
         p.save()
-        (record,) = p.history.all()
+        record, = p.history.all()
         self.assertRecordValues(
             record,
             Poll,
@@ -171,7 +167,7 @@ class HistoricalRecordsTest(TestCase):
     def test_delete_verify_change_reason_implicitly(self):
         p = Poll.objects.create(question="what's up?", pub_date=today)
         poll_id = p.id
-        p._change_reason = "wrongEntry"
+        p.changeReason = "wrongEntry"
         p.delete()
         delete_record, create_record = Poll.history.all()
         self.assertRecordValues(
@@ -310,26 +306,11 @@ class HistoricalRecordsTest(TestCase):
         )
 
     def test_file_field(self):
-        filename = str(uuid.uuid4())
-        model = FileModel.objects.create(file=get_fake_file(filename))
-        self.assertEqual(model.file.name, "files/{}".format(filename))
+        model = FileModel.objects.create(file=get_fake_file("name"))
+        self.assertEqual(model.file.name, "files/name")
         model.file.delete()
         update_record, create_record = model.history.all()
-        self.assertEqual(create_record.file, "files/{}".format(filename))
-        self.assertEqual(update_record.file, "")
-
-    def test_file_field_with_char_field_setting(self):
-        # setting means history table's file field is a CharField
-        file_field = CharFieldFileModel.history.model._meta.get_field("file")
-        self.assertIs(type(file_field), models.CharField)
-        self.assertEqual(file_field.max_length, 100)
-        # file field works the same as test_file_field()
-        filename = str(uuid.uuid4())
-        model = CharFieldFileModel.objects.create(file=get_fake_file(filename))
-        self.assertEqual(model.file.name, "files/{}".format(filename))
-        model.file.delete()
-        update_record, create_record = model.history.all()
-        self.assertEqual(create_record.file, "files/{}".format(filename))
+        self.assertEqual(create_record.file, "files/name")
         self.assertEqual(update_record.file, "")
 
     def test_inheritance(self):
@@ -370,32 +351,6 @@ class HistoricalRecordsTest(TestCase):
             [d.history_user for d in document.history.all()], [None, user2, user1]
         )
 
-    def test_specify_history_user_self_reference_delete(self):
-        user1 = User.objects.create_user("user1", "1@example.com")
-        user2 = User.objects.create_user("user2", "1@example.com")
-        document = Document.objects.create(changed_by=user1)
-        document.changed_by = user2
-        document.save()
-        document.changed_by = None
-        document.save()
-        self.assertEqual(
-            [d.history_user for d in document.history.all()], [None, user2, user1]
-        )
-
-        # Change back to user1
-        document.changed_by = user1
-        document.save()
-
-        # Deleting user1 will cascade delete the document,
-        # but fails when it tries to make the historical
-        # record for the deleted user1.
-        # This test performs differently on Postgres vs. SQLite
-        # because of how the two database handle database constraints
-        try:
-            user1.delete()
-        except IntegrityError as e:
-            self.fail(e)
-
     def test_specify_history_date_1(self):
         temperature = Temperature.objects.create(
             location="London", temperature=14, _history_date=today
@@ -424,7 +379,7 @@ class HistoricalRecordsTest(TestCase):
         library.book = None
         library.save()
         self.assertEqual(
-            [lib.book_id for lib in library.history.all()], [None, book2.pk, book1.pk]
+            [l.book_id for l in library.history.all()], [None, book2.pk, book1.pk]
         )
 
     def test_string_defined_foreign_key_save(self):
@@ -623,8 +578,7 @@ class HistoricalRecordsTest(TestCase):
         p.question = "what's up, man?"
         p.save()
         new_record, old_record = p.history.all()
-        with self.assertNumQueries(0):
-            delta = new_record.diff_against(old_record)
+        delta = new_record.diff_against(old_record)
         expected_change = ModelChange("question", "what's up?", "what's up, man")
         self.assertEqual(delta.changed_fields, ["question"])
         self.assertEqual(delta.old_record, old_record)
@@ -636,23 +590,8 @@ class HistoricalRecordsTest(TestCase):
         p.question = "what's up, man?"
         p.save()
         new_record, old_record = p.history.all()
-        with self.assertNumQueries(0):
-            delta = new_record.diff_against(old_record)
+        delta = new_record.diff_against(old_record)
         self.assertNotIn("pub_date", delta.changed_fields)
-
-    def test_history_diff_includes_changed_fields_of_base_model(self):
-        r = InheritedRestaurant.objects.create(name="McDonna", serves_hot_dogs=False)
-        # change base model field
-        r.name = "DonnutsKing"
-        r.save()
-        new_record, old_record = r.history.all()
-        with self.assertNumQueries(0):
-            delta = new_record.diff_against(old_record)
-        expected_change = ModelChange("name", "McDonna", "DonnutsKing")
-        self.assertEqual(delta.changed_fields, ["name"])
-        self.assertEqual(delta.old_record, old_record)
-        self.assertEqual(delta.new_record, new_record)
-        self.assertEqual(expected_change.field, delta.changes[0].field)
 
     def test_history_diff_with_incorrect_type(self):
         p = Poll.objects.create(question="what's up?", pub_date=today)
@@ -661,43 +600,6 @@ class HistoricalRecordsTest(TestCase):
         new_record, old_record = p.history.all()
         with self.assertRaises(TypeError):
             new_record.diff_against("something")
-
-    def test_history_diff_with_excluded_fields(self):
-        p = Poll.objects.create(question="what's up?", pub_date=today)
-        p.question = "what's up, man?"
-        p.save()
-        new_record, old_record = p.history.all()
-        with self.assertNumQueries(0):
-            delta = new_record.diff_against(old_record, excluded_fields=("question",))
-        self.assertEqual(delta.changed_fields, [])
-        self.assertEqual(delta.changes, [])
-
-    def test_history_diff_with_included_fields(self):
-        p = Poll.objects.create(question="what's up?", pub_date=today)
-        p.question = "what's up, man?"
-        p.save()
-        new_record, old_record = p.history.all()
-        with self.assertNumQueries(0):
-            delta = new_record.diff_against(old_record, included_fields=[])
-        self.assertEqual(delta.changed_fields, [])
-        self.assertEqual(delta.changes, [])
-
-        with self.assertNumQueries(0):
-            delta = new_record.diff_against(old_record, included_fields=["question"])
-        self.assertEqual(delta.changed_fields, ["question"])
-        self.assertEqual(len(delta.changes), 1)
-
-    def test_history_with_unknown_field(self):
-        p = Poll.objects.create(question="what's up?", pub_date=today)
-        p.question = "what's up, man?"
-        p.save()
-        new_record, old_record = p.history.all()
-        with self.assertRaises(KeyError):
-            with self.assertNumQueries(0):
-                new_record.diff_against(old_record, included_fields=["unknown_field"])
-
-        with self.assertNumQueries(0):
-            new_record.diff_against(old_record, excluded_fields=["unknown_field"])
 
 
 class GetPrevRecordAndNextRecordTestCase(TestCase):
@@ -721,12 +623,9 @@ class GetPrevRecordAndNextRecordTestCase(TestCase):
         third_record = self.poll.history.filter(question="eh?").get()
         fourth_record = self.poll.history.filter(question="one more?").get()
 
-        with self.assertNumQueries(1):
-            self.assertRecordsMatch(second_record.prev_record, first_record)
-        with self.assertNumQueries(1):
-            self.assertRecordsMatch(third_record.prev_record, second_record)
-        with self.assertNumQueries(1):
-            self.assertRecordsMatch(fourth_record.prev_record, third_record)
+        self.assertRecordsMatch(second_record.prev_record, first_record)
+        self.assertRecordsMatch(third_record.prev_record, second_record)
+        self.assertRecordsMatch(fourth_record.prev_record, third_record)
 
     def test_get_prev_record_none_if_only(self):
         self.assertEqual(self.poll.history.count(), 1)
@@ -739,26 +638,14 @@ class GetPrevRecordAndNextRecordTestCase(TestCase):
         first_record = self.poll.history.filter(question="what's up?").get()
         self.assertIsNone(first_record.prev_record)
 
-    def test_get_prev_record_with_custom_manager_name(self):
-        instance = CustomManagerNameModel.objects.create(name="Test name 1")
-        instance.name = "Test name 2"
+    def get_prev_record_with_custom_manager_name(self):
+        instance = CustomManagerNameModel(name="Test name 1")
         instance.save()
-        first_record = instance.log.filter(name="Test name 1").get()
+        instance.name = "Test name 2"
+        first_record = instance.log.filter(name="Test name").get()
         second_record = instance.log.filter(name="Test name 2").get()
 
-        self.assertEqual(second_record.prev_record, first_record)
-
-    def test_get_prev_record_with_excluded_field(self):
-        instance = PollWithExcludeFields.objects.create(
-            question="what's up?", pub_date=today
-        )
-        instance.question = "ask questions?"
-        instance.save()
-        first_record = instance.history.filter(question="what's up?").get()
-        second_record = instance.history.filter(question="ask questions?").get()
-
-        with self.assertNumQueries(1):
-            self.assertRecordsMatch(second_record.prev_record, first_record)
+        self.assertRecordsMatch(second_record.prev_record, first_record)
 
     def test_get_next_record(self):
         self.poll.question = "ask questions?"
@@ -773,12 +660,9 @@ class GetPrevRecordAndNextRecordTestCase(TestCase):
         fourth_record = self.poll.history.filter(question="one more?").get()
         self.assertIsNone(fourth_record.next_record)
 
-        with self.assertNumQueries(1):
-            self.assertRecordsMatch(first_record.next_record, second_record)
-        with self.assertNumQueries(1):
-            self.assertRecordsMatch(second_record.next_record, third_record)
-        with self.assertNumQueries(1):
-            self.assertRecordsMatch(third_record.next_record, fourth_record)
+        self.assertRecordsMatch(first_record.next_record, second_record)
+        self.assertRecordsMatch(second_record.next_record, third_record)
+        self.assertRecordsMatch(third_record.next_record, fourth_record)
 
     def test_get_next_record_none_if_only(self):
         self.assertEqual(self.poll.history.count(), 1)
@@ -791,26 +675,14 @@ class GetPrevRecordAndNextRecordTestCase(TestCase):
         recent_record = self.poll.history.filter(question="ask questions?").get()
         self.assertIsNone(recent_record.next_record)
 
-    def test_get_next_record_with_custom_manager_name(self):
-        instance = CustomManagerNameModel.objects.create(name="Test name 1")
-        instance.name = "Test name 2"
+    def get_next_record_with_custom_manager_name(self):
+        instance = CustomManagerNameModel(name="Test name 1")
         instance.save()
-        first_record = instance.log.filter(name="Test name 1").get()
+        instance.name = "Test name 2"
+        first_record = instance.log.filter(name="Test name").get()
         second_record = instance.log.filter(name="Test name 2").get()
 
-        self.assertEqual(first_record.next_record, second_record)
-
-    def test_get_next_record_with_excluded_field(self):
-        instance = PollWithExcludeFields.objects.create(
-            question="what's up?", pub_date=today
-        )
-        instance.question = "ask questions?"
-        instance.save()
-        first_record = instance.history.filter(question="what's up?").get()
-        second_record = instance.history.filter(question="ask questions?").get()
-
-        with self.assertNumQueries(1):
-            self.assertRecordsMatch(first_record.next_record, second_record)
+        self.assertRecordsMatch(first_record.next_record, second_record)
 
 
 class CreateHistoryModelTests(unittest.TestCase):
@@ -882,7 +754,6 @@ class CustomModelNameTests(unittest.TestCase):
         )
 
         from simple_history import register
-
         from ..models import OverrideModelNameRegisterMethod2
 
         try:
@@ -1066,16 +937,6 @@ class HistoryManagerTest(TestCase):
         poll.delete()
         self.assertRaises(Poll.DoesNotExist, poll.history.as_of, time)
 
-    def test_as_of_excluded_many_to_many_succeeds(self):
-        other1 = ManyToManyModelOther.objects.create(name="test1")
-        other2 = ManyToManyModelOther.objects.create(name="test2")
-
-        m = ModelWithExcludedManyToMany.objects.create(name="test")
-        m.other.add(other1, other2)
-
-        # This will fail if the ManyToMany field is not excluded.
-        self.assertEqual(m.history.as_of(datetime.now()), m)
-
     def test_foreignkey_field(self):
         why_poll = Poll.objects.create(question="why?", pub_date=today)
         how_poll = Poll.objects.create(question="how?", pub_date=today)
@@ -1235,14 +1096,7 @@ class TestOrderWrtField(TestCase):
 
         model_state = state.ModelState.from_model(SeriesWork.history.model)
         found = False
-        # `fields` is a dict in Django 3.1
-        fields = None
-        if isinstance(model_state.fields, dict):
-            fields = model_state.fields.items()
-        else:
-            fields = model_state.fields
-
-        for name, field in fields:
+        for name, field in model_state.fields:
             if name == "_order":
                 found = True
                 self.assertEqual(type(field), models.IntegerField)
@@ -1250,7 +1104,7 @@ class TestOrderWrtField(TestCase):
 
 
 class TestLatest(TestCase):
-    """Test behavior of `latest()` without any field parameters"""
+    """"Test behavior of `latest()` without any field parameters"""
 
     def setUp(self):
         poll = Poll.objects.create(question="Does `latest()` work?", pub_date=yesterday)
@@ -1280,7 +1134,7 @@ class TestLatest(TestCase):
         self.write_history(
             [{"pk": 1, "history_date": yesterday}, {"pk": 2, "history_date": yesterday}]
         )
-        assert HistoricalPoll.objects.latest().pk == 2
+        assert HistoricalPoll.objects.latest().pk == 1
 
 
 class TestMissingOneToOne(TestCase):
@@ -1290,19 +1144,18 @@ class TestMissingOneToOne(TestCase):
         self.employee = Employee.objects.create(manager=self.manager1)
         self.employee.manager = self.manager2
         self.employee.save()
-        self.manager1_id = self.manager1.id
         self.manager1.delete()
 
     def test_history_is_complete(self):
         historical_manager_ids = list(
             self.employee.history.order_by("pk").values_list("manager_id", flat=True)
         )
-        self.assertEqual(historical_manager_ids, [self.manager1_id, self.manager2.id])
+        self.assertEqual(historical_manager_ids, [1, 2])
 
     def test_restore_employee(self):
         historical = self.employee.history.order_by("pk")[0]
         original = historical.instance
-        self.assertEqual(original.manager_id, self.manager1_id)
+        self.assertEqual(original.manager_id, 1)
         with self.assertRaises(Employee.DoesNotExist):
             original.manager
 
@@ -1331,29 +1184,6 @@ class ExcludeFieldsTest(TestCase):
             historical.pub_date
         original = historical.instance
         self.assertEqual(original.pub_date, poll.pub_date)
-
-
-class ExcludeFieldsForDeletedObjectTest(TestCase):
-    def setUp(self):
-        self.poll = PollWithExcludedFieldsWithDefaults.objects.create(
-            question="what's up?", pub_date=today, max_questions=12
-        )
-        self.historical = self.poll.history.order_by("pk")[0]
-        self.poll.delete()
-
-    def test_restore_deleted_poll_exclude_fields(self):
-        original = self.historical.instance
-        # pub_date don't have default value so it will be None
-        self.assertIsNone(original.pub_date)
-        # same for max_questions
-        self.assertIsNone(original.max_questions)
-
-    def test_restore_deleted_poll_exclude_fields_with_defaults(self):
-        poll = self.poll
-        original = self.historical.instance
-        self.assertEqual(original.expiration_time, poll.expiration_time)
-        self.assertEqual(original.place, poll.place)
-        self.assertEqual(original.min_questions, poll.min_questions)
 
 
 class ExcludeForeignKeyTest(TestCase):
@@ -1434,7 +1264,7 @@ class ExtraFieldsStaticIPAddressTestCase(TestCase):
 
 def add_dynamic_history_ip_address(sender, **kwargs):
     history_instance = kwargs["history_instance"]
-    history_instance.ip_address = HistoricalRecords.context.request.META["REMOTE_ADDR"]
+    history_instance.ip_address = HistoricalRecords.thread.request.META["REMOTE_ADDR"]
 
 
 @override_settings(**middleware_override_settings)
@@ -1453,7 +1283,7 @@ class ExtraFieldsDynamicIPAddressTestCase(TestCase):
             dispatch_uid="add_dynamic_history_ip_address",
         )
 
-    def test_signal_is_able_to_retrieve_request_from_context(self):
+    def test_signal_is_able_to_retrieve_request_from_thread(self):
         data = {"question": "Will it blend?", "pub_date": "2018-10-30"}
 
         self.client.post(reverse("pollip-add"), data=data)
@@ -1491,7 +1321,10 @@ class MultiDBWithUsingTest(TestCase):
     keyword argument in `save()`.
     """
 
-    databases = {"default", "other"}
+    if django.VERSION >= (2, 2, 0, "final"):
+        databases = {"default", "other"}
+    else:
+        multi_db = True
 
     db_name = "other"
 
@@ -1612,18 +1445,44 @@ class ForeignKeyToSelfTest(TestCase):
 
 @override_settings(**database_router_override_settings)
 class MultiDBExplicitHistoryUserIDTest(TestCase):
-    databases = {"default", "other"}
+    if django.VERSION >= (2, 2):
+        databases = {"default", "other"}
 
     def setUp(self):
         self.user = get_user_model().objects.create(
             username="username", email="username@test.com", password="top_secret"
         )
 
+    @unittest.skipIf(
+        django.VERSION < (2, 1), "Bug with allow_relation call before Django 2.1"
+    )
     def test_history_user_with_fk_in_different_db_raises_value_error(self):
         instance = ExternalModel(name="random_name")
         instance._history_user = self.user
         with self.assertRaises(ValueError):
             instance.save()
+
+    @unittest.skipIf(
+        django.VERSION < (2, 0) or django.VERSION >= (2, 1),
+        "Django 2.0 is first version with sqlite db constraints",
+    )
+    def test_history_user_with_fk_in_different_db_raises_integrity_error_in_2_0(self):
+        instance = ExternalModel(name="random_name")
+        instance._history_user = self.user
+        with self.assertRaises(IntegrityError):
+            instance.save()
+
+    @unittest.skipUnless(
+        django.VERSION < (2, 0),
+        "Django 1.11 doesn't have integrity constraints on sqlite",
+    )
+    def test_history_user_with_fk_in_different_db_raises_error(self):
+        instance = ExternalModel(name="random_name")
+        instance._history_user = self.user
+        instance.save()
+
+        with self.assertRaises(CustomUser.DoesNotExist):
+            instance.history.first().history_user
 
     def test_history_user_with_integer_field(self):
         instance = ExternalModelWithCustomUserIdField(name="random_name")
@@ -1718,7 +1577,10 @@ class RelatedNameTest(TestCase):
 
 @override_settings(**database_router_override_settings_history_in_diff_db)
 class SaveHistoryInSeparateDatabaseTestCase(TestCase):
-    databases = {"default", "other"}
+    if django.VERSION >= (2, 2, 0, "final"):
+        databases = {"default", "other"}
+    else:
+        multi_db = True
 
     def setUp(self):
         self.model = ModelWithHistoryInDifferentDb.objects.create(name="test")

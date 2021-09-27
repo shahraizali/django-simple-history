@@ -14,7 +14,7 @@ clean-pyc:
 	find . -name '*~' -exec rm -f {} +
 
 init:
-	pip install "tox>=1.8" coverage
+	pip install "tox>=1.8" coverage Sphinx
 
 test:
 	coverage erase
@@ -24,7 +24,7 @@ test:
 docs: documentation
 
 documentation:
-	tox -e docs
+	sphinx-build -b html -d docs/_build/doctrees docs docs/_build/html
 
 dist: clean
 	pip install -U wheel
@@ -44,4 +44,4 @@ release: dist
 	twine upload dist/*
 
 format:
-	tox -e format
+	black simple_history

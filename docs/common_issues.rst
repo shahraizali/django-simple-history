@@ -5,7 +5,7 @@ Bulk Creating and Queryset Updating
 -----------------------------------
 ``django-simple-history`` functions by saving history using a ``post_save`` signal
 every time that an object with history is saved. However, for certain bulk
-operations, such as bulk_create_, bulk_update_, and `queryset updates`_,
+operations, such as bulk_create_ and `queryset updates <https://docs.djangoproject.com/en/2.0/ref/models/querysets/#update>`_,
 signals are not sent, and the history is not saved automatically. However,
 ``django-simple-history`` provides utility functions to work around this.
 
@@ -16,7 +16,6 @@ As of ``django-simple-history`` 2.2.0, we can use the utility function
 history:
 
 .. _bulk_create: https://docs.djangoproject.com/en/2.0/ref/models/querysets/#bulk-create
-.. _bulk_update: https://docs.djangoproject.com/en/3.0/ref/models/querysets/#bulk-update
 
 
 .. code-block:: pycon
@@ -32,64 +31,20 @@ history:
     >>> Poll.history.count()
     1000
 
-If you want to specify a change reason or history user for each record in the bulk create,
-you can add `_change_reason`, `_history_user` or `_history_date` on each instance:
+If you want to specify a change reason for each record in the bulk create, you
+can add `changeReason` on each instance:
 
 .. code-block:: pycon
 
     >>> for poll in data:
-            poll._change_reason = 'reason'
-            poll._history_user = my_user
-            poll._history_date = some_date
+            poll.changeReason = 'reason'
     >>> objs = bulk_create_with_history(data, Poll, batch_size=500)
     >>> Poll.history.get(id=data[0].id).history_change_reason
     'reason'
 
-You can also specify a default user or default change reason responsible for the change
-(`_change_reason`, `_history_user` and `_history_date` take precedence).
 
-.. code-block:: pycon
-
-    >>> user = User.objects.create_user("tester", "tester@example.com")
-    >>> objs = bulk_create_with_history(data, Poll, batch_size=500, default_user=user)
-    >>> Poll.history.get(id=data[0].id).history_user == user
-    True
-
-Bulk Updating a Model with History (New)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Bulk update was introduced with Django 2.2. We can use the utility function
-``bulk_update_with_history`` in order to bulk update objects using Django's
-``bulk_update`` function while saving the object history:
-
-
-.. code-block:: pycon
-
-    >>> from simple_history.utils import bulk_update_with_history
-    >>> from simple_history.tests.models import Poll
-    >>> from django.utils.timezone import now
-    >>>
-    >>> data = [Poll(id=x, question='Question ' + str(x), pub_date=now()) for x in range(1000)]
-    >>> objs = bulk_create_with_history(data, Poll, batch_size=500)
-    >>> for obj in objs: obj.question = 'Duplicate Questions'
-    >>> bulk_update_with_history(objs, Poll, ['question'], batch_size=500)
-    >>> Poll.objects.first().question
-    'Duplicate Question``
-
-If your models require the use of an alternative model manager (usually because the
-default manager returns a filtered set), you can specify which manager to use with the
-``manager`` argument:
-
-.. code-block:: pycon
-
-    >>> from simple_history.utils import bulk_update_with_history
-    >>> from simple_history.tests.models import PollWithAlternativeManager
-    >>>
-    >>> data = [PollWithAlternativeManager(id=x, question='Question ' + str(x), pub_date=now()) for x in range(1000)]
-    >>> objs = bulk_create_with_history(data, PollWithAlternativeManager, batch_size=500, manager=PollWithAlternativeManager.all_polls)
-
-QuerySet Updates with History (Updated in Django 2.2)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+QuerySet Updates with History
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Unlike with ``bulk_create``, `queryset updates`_ perform an SQL update query on
 the queryset, and never return the actual updated objects (which would be
 necessary for the inserts into the historical table). Thus, we tell you that
@@ -105,9 +60,8 @@ As the Django documentation says::
         e.comments_on = False
         e.save()
 
-.. _queryset updates: https://docs.djangoproject.com/en/2.2/ref/models/querysets/#update
+.. _queryset updates: https://docs.djangoproject.com/en/2.0/ref/models/querysets/#update
 
-Note: Django 2.2 now allows ``bulk_update``. No ``pre_save`` or ``post_save`` signals are sent still.
 
 Tracking Custom Users
 ---------------------
@@ -119,6 +73,7 @@ Tracking Custom Users
 
     Use ``register()`` to track changes to the custom user model
     instead of setting ``HistoricalRecords`` on the model directly.
+    See :ref:`register`.
 
     The reason for this, is that unfortunately ``HistoricalRecords``
     cannot be set directly on a swapped user model because of the user
@@ -144,8 +99,8 @@ you use:
 .. code-block:: python
 
     from simple_history.middleware import HistoricalRecords
-    if hasattr(HistoricalRecords.context, 'request'):
-        del HistoricalRecords.context.request
+    if hasattr(HistoricalRecords.thread, 'request'):
+        del HistoricalRecords.thread.request
 
 Using F() expressions
 ---------------------
@@ -228,29 +183,3 @@ A few notes:
   fields from the parent model.
 - Updating a child instance only updates the child's history table, not the parent's
   history table.
-
-
-Usage with django-modeltranslation
-----------------------------------
-
-If you have ``django-modeltranslation`` installed, you will need to use the ``register()``
-method to model translation, as described `here <https://github.com/jazzband/django-simple-history/issues/209#issuecomment-181676111>`__.
-
-
-Pointing to the model
----------------------
-
-Sometimes you have to point to the model of the historical records. Examples are Django's generic views or Django REST framework's serializers. You can get there through your HistoricalRecords manager you defined in your model. According to our example:
-
-.. code-block:: python
-
-    class PollHistoryListView(ListView): # or PollHistorySerializer(ModelSerializer):
-        class Meta:
-            model = Poll.history.model
-           # ...
-
-Working with BitBucket Pipelines
---------------------------------
-
-When using BitBucket Pipelines to test your Django project with the
-django-simple-history middleware, you will run into an error relating to missing migrations relating to the historic User model from the auth app. This is because the migration file is not held within either your project or django-simple-history.  In order to pypass the error you need to add a ```python manage.py makemigrations auth``` step into your YML file prior to running the tests.

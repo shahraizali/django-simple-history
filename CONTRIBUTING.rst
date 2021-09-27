@@ -1,12 +1,6 @@
 Contributing to django-simple-history
 =====================================
 
-.. image:: https://jazzband.co/static/img/jazzband.svg
-   :target: https://jazzband.co/
-   :alt: Jazzband
-
-This is a `Jazzband <https://jazzband.co>`_ project. By contributing you agree to abide by the `Contributor Code of Conduct <https://jazzband.co/about/conduct>`_ and follow the `guidelines <https://jazzband.co/about/guidelines>`_.
-
 Pull Requests
 -------------
 
@@ -38,13 +32,15 @@ running tests::
 This will install:
 
 - `tox`_: used for running the tests against all supported versions of Django
-  and Python as well as running tasks like lint, format, docs
+  and Python
 - `coverage`_: used for analyzing test coverage for tests
+- `Sphinx`_: used for generating documentation
 
 If not using a virtualenv, the command should be prepended with ``sudo``.
 
 .. _tox: http://testrun.org/tox/latest//
 .. _coverage: http://nedbatchelder.com/code/coverage/
+.. _sphinx: http://sphinx-doc.org/
 
 Documentation
 -------------
@@ -67,7 +63,7 @@ To run tox and generate an HTML code coverage report (available in the
 To quickly run the tests against a single version of Python and Django (note: you must
 ``pip install django`` beforehand)::
 
-    python runtests.py
+    python setup.py test
 
 Code Formatting
 ---------------

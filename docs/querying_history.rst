@@ -44,7 +44,7 @@ records for all ``Choice`` instances can be queried by using the manager on the
     [<HistoricalChoice: Choice object as of 2010-10-25 18:05:12.183340>, <HistoricalChoice: Choice object as of 2010-10-25 18:04:59.047351>]
 
 Because the history is model, you can also filter it like regularly QuerySets,
-e.g. ``Choice.history.filter(choice_text='Not Much')`` will work!
+a.k. Choice.history.filter(choice_text='Not Much') will work!
 
 Getting previous and next historical record
 -------------------------------------------
@@ -122,6 +122,9 @@ model history.
     <Poll: Poll object as of 2010-10-25 18:04:13.814128>
 
 
+.. _register:
+
+
 Save without a historical record
 --------------------------------
 
@@ -159,10 +162,3 @@ To filter changes to the data, a relationship to the history can be established.
 
 
     Poll.objects.filter(history__history_user=4)
-
-You can also prefetch the objects with this relationship using somthing like this for example to prefetch order by history_date descending:
-
-.. code-block:: python
-
-    Poll.objects.filter(something).prefetch_related(Prefetch('history', queryset=Poll.history.order_by('-history_date'),
-                                                to_attr='ordered_histories')

@@ -1,9 +1,9 @@
-from django.db import transaction
 from django.utils import timezone
+from django.db import transaction
 
+from . import populate_history
 from ... import models, utils
 from ...exceptions import NotHistoricalModelError
-from . import populate_history
 
 
 class Command(populate_history.Command):
@@ -31,15 +31,9 @@ class Command(populate_history.Command):
         parser.add_argument(
             "-m", "--minutes", type=int, help="Only search the last MINUTES of history"
         )
-        parser.add_argument(
-            "--excluded_fields",
-            nargs="+",
-            help="List of fields to be excluded from the diff_against check",
-        )
 
     def handle(self, *args, **options):
         self.verbosity = options["verbosity"]
-        self.excluded_fields = options.get("excluded_fields")
 
         to_process = set()
         model_strings = options.get("models", []) or args
@@ -71,17 +65,11 @@ class Command(populate_history.Command):
             if not found:
                 continue
 
-            # Break apart the query so we can add additional filtering
-            model_query = model.objects.all()
-
-            # If we're provided a stop date take the initial hit of getting the
-            # filtered records to iterate over
-            if stop_date:
-                model_query = model_query.filter(
-                    pk__in=(m_qs.values_list(model._meta.pk.name).distinct())
-                )
-
-            for o in model_query.iterator():
+            # it would be great if we could just iterate over the instances that
+            # have changes (in the given period) but
+            # `m_qs.values(model._meta.pk.name).distinct()`
+            # is actually slower than looping all and filtering in the code...
+            for o in model.objects.all():
                 self._process_instance(o, model, stop_date=stop_date, dry_run=dry_run)
 
     def _process_instance(self, instance, model, stop_date=None, dry_run=True):
@@ -115,7 +103,7 @@ class Command(populate_history.Command):
             self.stdout.write(message)
 
     def _check_and_delete(self, entry1, entry2, dry_run=True):
-        delta = entry1.diff_against(entry2, excluded_fields=self.excluded_fields)
+        delta = entry1.diff_against(entry2)
         if not delta.changed_fields:
             if not dry_run:
                 entry1.delete()

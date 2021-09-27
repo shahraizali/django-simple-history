@@ -1,8 +1,9 @@
+from __future__ import unicode_literals
+
 from django.contrib import admin
 
 from simple_history.admin import SimpleHistoryAdmin
 from simple_history.tests.external.models import ExternalModelWithCustomUserIdField
-
 from .models import (
     Book,
     Choice,
@@ -12,7 +13,6 @@ from .models import (
     FileModel,
     Paper,
     Person,
-    Planet,
     Poll,
 )
 
@@ -33,13 +33,6 @@ class FileModelAdmin(SimpleHistoryAdmin):
     history_list_display = ["title", "test_method"]
 
 
-class PlanetAdmin(SimpleHistoryAdmin):
-    def test_method(self, obj):
-        return "test_method_value"
-
-    history_list_display = ["title", "test_method"]
-
-
 admin.site.register(Poll, SimpleHistoryAdmin)
 admin.site.register(Choice, ChoiceAdmin)
 admin.site.register(Person, PersonAdmin)
@@ -50,4 +43,3 @@ admin.site.register(Employee, SimpleHistoryAdmin)
 admin.site.register(ConcreteExternal, SimpleHistoryAdmin)
 admin.site.register(ExternalModelWithCustomUserIdField, SimpleHistoryAdmin)
 admin.site.register(FileModel, FileModelAdmin)
-admin.site.register(Planet, PlanetAdmin)

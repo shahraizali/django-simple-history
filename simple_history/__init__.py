@@ -1,10 +1,6 @@
-from pkg_resources import DistributionNotFound, get_distribution
+from __future__ import unicode_literals
 
-try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:
-    # package is not installed
-    pass
+__version__ = "2.7.3"
 
 
 def register(
@@ -13,7 +9,7 @@ def register(
     manager_name="history",
     records_class=None,
     table_name=None,
-    **records_config,
+    **records_config
 ):
     """
     Create historical model for `model` and attach history manager to `model`.

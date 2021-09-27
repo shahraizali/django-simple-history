@@ -470,7 +470,7 @@ class HistoricalRecords(object):
             self.create_historical_record(instance, "-", using=using)
 
     def create_historical_record(self, instance, history_type, using=None):
-        using = using if self.use_base_model_db else None
+        using = using if self.use_base_model_db else self.using
         history_date = getattr(instance, "_history_date", now())
         history_user = self.get_history_user(instance)
         history_change_reason = getattr(instance, "changeReason", None)

@@ -143,7 +143,7 @@ class HistoricalRecords(object):
             return ret
 
         setattr(cls, "save_without_historical_record", save_without_historical_record)
-     def setup_m2m_history(self, cls):
+    def setup_m2m_history(self, cls):
         m2m_history_fields = self.m2m_fields
         if m2m_history_fields:
             assert (isinstance(m2m_history_fields, list) or isinstance(m2m_history_fields, tuple)), 'm2m_history_fields must be a list or tuple'

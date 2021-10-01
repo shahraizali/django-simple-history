@@ -25,6 +25,7 @@ from simple_history import utils
 from . import exceptions
 from .manager import HistoryDescriptor
 from .signals import post_create_historical_record, pre_create_historical_record
+from simple_history import register#m2m
 
 import json
 
@@ -80,7 +81,8 @@ class HistoricalRecords(object):
         history_user_setter=_history_user_setter,
         related_name=None,
         use_base_model_db=False,
-        using=None
+        using=None,
+        m2m_fields=None#m2m
     ):
         self.user_set_verbose_name = verbose_name
         self.user_related_name = user_related_name
@@ -99,6 +101,7 @@ class HistoricalRecords(object):
         self.related_name = related_name
         self.use_base_model_db = use_base_model_db
         self.using = using
+        self.m2m_fields = m2m_fields #m2m
 
         if excluded_fields is None:
             excluded_fields = []
@@ -116,6 +119,7 @@ class HistoricalRecords(object):
         self.cls = cls
         models.signals.class_prepared.connect(self.finalize, weak=False)
         self.add_extra_methods(cls)
+        self.setup_m2m_history(cls)#m2m
 
         if cls._meta.abstract and not self.inherit:
             msg = (
@@ -139,6 +143,16 @@ class HistoricalRecords(object):
             return ret
 
         setattr(cls, "save_without_historical_record", save_without_historical_record)
+     def setup_m2m_history(self, cls):#m2m
+        m2m_history_fields = self.m2m_fields
+        if m2m_history_fields:
+            assert (isinstance(m2m_history_fields, list) or isinstance(m2m_history_fields, tuple)), 'm2m_history_fields must be a list or tuple'
+            for field_name in m2m_history_fields:
+                field = getattr(cls, field_name).field
+                assert isinstance(field, models.fields.related.ManyToManyField), ('%s must be a ManyToManyField' % field_name)
+                if not sum([isinstance(item, HistoricalRecords) for item in field.rel.through.__dict__.values()]):
+                    field.rel.through.history = HistoricalRecords()
+                    register(field.rel.through)
 
     def finalize(self, sender, **kwargs):
         inherited = False
@@ -165,6 +179,7 @@ class HistoricalRecords(object):
         # so the signal handlers can't use weak references.
         models.signals.post_save.connect(self.post_save, sender=sender, weak=False)
         models.signals.post_delete.connect(self.post_delete, sender=sender, weak=False)
+        models.signals.m2m_changed.connect(self.m2m_changed, sender=sender, weak=False)#m2m
 
         descriptor = HistoryDescriptor(history_model)
         setattr(sender, self.manager_name, descriptor)
@@ -468,6 +483,26 @@ class HistoricalRecords(object):
             manager.using(using).all().delete()
         else:
             self.create_historical_record(instance, "-", using=using)
+    def m2m_changed(self, action, instance, sender, **kwargs):#m2m
+        source_field_name, target_field_name = None, None
+        for field_name, field_value in sender.__dict__.items():
+            if isinstance(field_value, models.fields.related.ReverseSingleRelatedObjectDescriptor):
+                if field_value.field.related.parent_model == kwargs['model']:
+                    target_field_name = field_name
+                elif field_value.field.related.parent_model == type(instance):
+                    source_field_name = field_name
+        items = sender.objects.filter(**{source_field_name:instance})
+        if kwargs['pk_set']:
+            items = items.filter(**{target_field_name + '__id__in':kwargs['pk_set']})
+        for item in items:
+            if action == 'post_add':
+                if hasattr(item, 'skip_history_when_saving'):
+                    return
+                self.create_historical_record(item, '+')
+            elif action == 'pre_remove':
+                self.create_historical_record(item, '-')
+            elif action == 'pre_clear':
+                self.create_historical_record(item, '-')
 
     def create_historical_record(self, instance, history_type, using=None):
         using = using if self.use_base_model_db else self.using

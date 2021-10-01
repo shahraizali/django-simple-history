@@ -143,7 +143,7 @@ class HistoricalRecords(object):
             return ret
 
         setattr(cls, "save_without_historical_record", save_without_historical_record)
-     def setup_m2m_history(self, cls):#m2m
+     def setup_m2m_history(self, cls):
         m2m_history_fields = self.m2m_fields
         if m2m_history_fields:
             assert (isinstance(m2m_history_fields, list) or isinstance(m2m_history_fields, tuple)), 'm2m_history_fields must be a list or tuple'
@@ -483,7 +483,7 @@ class HistoricalRecords(object):
             manager.using(using).all().delete()
         else:
             self.create_historical_record(instance, "-", using=using)
-    def m2m_changed(self, action, instance, sender, **kwargs):#m2m
+    def m2m_changed(self, action, instance, sender, **kwargs):
         source_field_name, target_field_name = None, None
         for field_name, field_value in sender.__dict__.items():
             if isinstance(field_value, models.fields.related.ReverseSingleRelatedObjectDescriptor):

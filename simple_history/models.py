@@ -152,7 +152,7 @@ class HistoricalRecords(object):
             for field_name in m2m_history_fields:
                 field = getattr(cls, field_name).field
                 assert isinstance(field, models.fields.related.ManyToManyField), ('%s must be a ManyToManyField' % field_name)
-                if not sum([isinstance(item, HistoricalRecords) for item in field.rel.through.__dict__.values()]):
+                if not sum([isinstance(item, HistoricalRecords) for item in field.remote_field.through.__dict__.values()]):  #change rel to remote
                     field.rel.through.history = HistoricalRecords()
                     register(field.rel.through)
    
